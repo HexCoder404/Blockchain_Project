@@ -1,0 +1,9 @@
+{
+  "name": "satbara-utara-land-records",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "contracts",
+    "frontend"
+  ]
+}
