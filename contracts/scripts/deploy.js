@@ -5,7 +5,7 @@ const { ethers } = require("hardhat");
 async function main() {
   console.log("Starting deployment...");
 
-  const [deployer] = await ethers.getSigners();
+  const [deployer, talathi, subRegistrar, bank] = await ethers.getSigners();
   console.log(`Deploying contracts with account: ${deployer.address}`);
 
   const LandRegistry = await ethers.getContractFactory("LandRegistry");
@@ -24,6 +24,12 @@ async function main() {
   await landRegistry.grantRole(TALATHI_ROLE, deployer.address);
   await landRegistry.grantRole(SUB_REGISTRAR_ROLE, deployer.address);
   await landRegistry.grantRole(BANK_ROLE, deployer.address);
+  await landRegistry.grantRole(TALATHI_ROLE, talathi.address);
+  await landRegistry.grantRole(SUB_REGISTRAR_ROLE, subRegistrar.address);
+  await landRegistry.grantRole(BANK_ROLE, bank.address);
+  console.log(`Talathi account: ${talathi.address}`);
+  console.log(`Sub-Registrar account: ${subRegistrar.address}`);
+  console.log(`Bank account: ${bank.address}`);
 
   // Seed 5 demo land records
   console.log("Seeding 5 demo land records...");

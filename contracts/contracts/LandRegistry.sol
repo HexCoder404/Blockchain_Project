@@ -43,6 +43,7 @@ contract LandRegistry is AccessControl, ReentrancyGuard {
         uint256 price;
         TransferState state;
         uint256 initiatedAt;
+        uint256 registeredAt;
         bool hasObjection;
     }
 
@@ -51,10 +52,12 @@ contract LandRegistry is AccessControl, ReentrancyGuard {
     mapping(address => bytes32[]) private _ownerParcels;
     mapping(bytes32 => address[]) private _ownershipHistory;
     mapping(bytes32 => TransferRequest) private _transfers;
+    bytes32[] private _allParcelIds;
 
     // --- Events ---
     event LandRegistered(bytes32 indexed parcelId, uint256 surveyNumber, uint256 subNumber, string village, address indexed owner);
     event LandStatusChanged(bytes32 indexed parcelId, Status newStatus);
+    event LandEncumbranceChanged(bytes32 indexed parcelId, Encumbrance newEncumbrance, address indexed updatedBy);
     
     event TransferInitiated(bytes32 indexed parcelId, address indexed seller, address indexed buyer, uint256 price);
     event TransferAccepted(bytes32 indexed parcelId, address indexed buyer);
@@ -75,6 +78,9 @@ contract LandRegistry is AccessControl, ReentrancyGuard {
     error ObjectionPeriodActive();
     error ObjectionPeriodExpired();
     error ObjectionPresent();
+    error InvalidAddress();
+    error InvalidArea();
+    error SelfTransfer();
 
     /**
      * @dev Modifier to check if a parcel is transferable (exists, active, and unencumbered).
@@ -137,6 +143,8 @@ contract LandRegistry is AccessControl, ReentrancyGuard {
         bytes32 parcelId = getParcelId(village, surveyNumber, subNumber);
 
         if (_parcels[parcelId].createdAt != 0) revert ParcelAlreadyExists(parcelId);
+        if (currentOwner == address(0)) revert InvalidAddress();
+        if (areaSqM == 0) revert InvalidArea();
 
         _parcels[parcelId] = LandParcel({
             surveyNumber: surveyNumber,
@@ -156,6 +164,7 @@ contract LandRegistry is AccessControl, ReentrancyGuard {
 
         _ownerParcels[currentOwner].push(parcelId);
         _ownershipHistory[parcelId].push(currentOwner);
+        _allParcelIds.push(parcelId);
 
         emit LandRegistered(parcelId, surveyNumber, subNumber, village, currentOwner);
     }
@@ -173,6 +182,13 @@ contract LandRegistry is AccessControl, ReentrancyGuard {
      */
     function getLandsByOwner(address owner) external view returns (bytes32[] memory) {
         return _ownerParcels[owner];
+    }
+
+    /**
+     * @notice Retrieves every registered parcel ID for dashboard discovery.
+     */
+    function getAllParcelIds() external view returns (bytes32[] memory) {
+        return _allParcelIds;
     }
 
     /**
@@ -200,6 +216,27 @@ contract LandRegistry is AccessControl, ReentrancyGuard {
         emit LandStatusChanged(parcelId, Status.Frozen);
     }
 
+    /**
+     * @notice Allows the administrator to restore or change a parcel status.
+     */
+    function setLandStatus(bytes32 parcelId, Status newStatus) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (_parcels[parcelId].createdAt == 0) revert ParcelDoesNotExist(parcelId);
+        _parcels[parcelId].status = newStatus;
+        emit LandStatusChanged(parcelId, newStatus);
+    }
+
+    /**
+     * @notice Allows a bank or administrator to record or clear a mortgage.
+     */
+    function setEncumbrance(bytes32 parcelId, Encumbrance newEncumbrance) external {
+        if (!hasRole(BANK_ROLE, msg.sender) && !hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
+            revert UnauthorizedAccount(msg.sender);
+        }
+        if (_parcels[parcelId].createdAt == 0) revert ParcelDoesNotExist(parcelId);
+        _parcels[parcelId].encumbrance = newEncumbrance;
+        emit LandEncumbranceChanged(parcelId, newEncumbrance, msg.sender);
+    }
+
     // --- Transfer Workflow (Mutation) ---
 
     /**
@@ -213,6 +250,8 @@ contract LandRegistry is AccessControl, ReentrancyGuard {
     ) external nonReentrant isTransferable(parcelId) {
         if (_parcels[parcelId].currentOwner != msg.sender) revert NotOwner();
         if (_transfers[parcelId].state != TransferState.None) revert InvalidTransferState();
+        if (buyer == address(0)) revert InvalidAddress();
+        if (buyer == msg.sender) revert SelfTransfer();
 
         _transfers[parcelId] = TransferRequest({
             buyer: buyer,
@@ -220,6 +259,7 @@ contract LandRegistry is AccessControl, ReentrancyGuard {
             price: price,
             state: TransferState.Initiated,
             initiatedAt: block.timestamp,
+            registeredAt: 0,
             hasObjection: false
         });
 
@@ -246,6 +286,7 @@ contract LandRegistry is AccessControl, ReentrancyGuard {
         if (request.state != TransferState.Accepted) revert InvalidTransferState();
 
         request.state = TransferState.Registered;
+        request.registeredAt = block.timestamp;
         emit RegistrationApproved(parcelId, msg.sender);
     }
 
@@ -254,8 +295,8 @@ contract LandRegistry is AccessControl, ReentrancyGuard {
      */
     function fileObjection(bytes32 parcelId, string memory reasonCID) external nonReentrant {
         TransferRequest storage request = _transfers[parcelId];
-        if (request.state == TransferState.None) revert InvalidTransferState();
-        if (block.timestamp > request.initiatedAt + 30 days) revert ObjectionPeriodExpired();
+        if (request.state != TransferState.Registered) revert InvalidTransferState();
+        if (block.timestamp > request.registeredAt + 30 days) revert ObjectionPeriodExpired();
 
         request.hasObjection = true;
         emit ObjectionFiled(parcelId, msg.sender, reasonCID);
@@ -267,7 +308,7 @@ contract LandRegistry is AccessControl, ReentrancyGuard {
     function certifyMutation(bytes32 parcelId, bytes32 newOwnerNameHash) external nonReentrant isTransferable(parcelId) onlyRole(TALATHI_ROLE) {
         TransferRequest storage request = _transfers[parcelId];
         if (request.state != TransferState.Registered) revert InvalidTransferState();
-        if (block.timestamp < request.initiatedAt + 30 days) revert ObjectionPeriodActive();
+        if (block.timestamp < request.registeredAt + 30 days) revert ObjectionPeriodActive();
         if (request.hasObjection) revert ObjectionPresent();
 
         address oldOwner = _parcels[parcelId].currentOwner;
@@ -306,6 +347,7 @@ contract LandRegistry is AccessControl, ReentrancyGuard {
      * @notice Returns the full ownership history of a land parcel.
      */
     function getOwnershipHistory(bytes32 parcelId) external view returns (address[] memory) {
+        if (_parcels[parcelId].createdAt == 0) revert ParcelDoesNotExist(parcelId);
         return _ownershipHistory[parcelId];
     }
 
@@ -313,6 +355,7 @@ contract LandRegistry is AccessControl, ReentrancyGuard {
      * @notice Returns the active transfer request for a land parcel.
      */
     function getTransferRequest(bytes32 parcelId) external view returns (TransferRequest memory) {
+        if (_parcels[parcelId].createdAt == 0) revert ParcelDoesNotExist(parcelId);
         return _transfers[parcelId];
     }
 }

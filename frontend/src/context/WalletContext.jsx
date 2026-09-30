@@ -15,6 +15,34 @@ const LOCAL_NETWORK_CONFIG = {
   rpcUrls: ['http://127.0.0.1:8545'],
 };
 
+const CONTRACT_ERROR_MESSAGES = {
+  ParcelAlreadyExists: 'This land parcel is already registered.',
+  ParcelDoesNotExist: 'The supplied parcel ID does not exist.',
+  UnauthorizedAccount: 'The connected wallet is not authorized for this action.',
+  NotOwner: 'Only the current landowner can perform this action.',
+  NotBuyer: 'Only the buyer named in this transfer can accept it.',
+  InvalidTransferState: 'This transfer is not at the required workflow step.',
+  EncumbrancePresent: 'This parcel has an active mortgage or encumbrance.',
+  InvalidStatus: 'This parcel is disputed or frozen and cannot be transferred.',
+  ObjectionPeriodActive: 'The 30-day objection period is still active. Certification becomes available when its countdown reaches zero.',
+  ObjectionPeriodExpired: 'The 30-day objection period has ended.',
+  ObjectionPresent: 'This mutation cannot be certified because an objection was filed.',
+  InvalidAddress: 'Enter a valid non-zero wallet address.',
+  InvalidArea: 'Land area must be greater than zero.',
+  SelfTransfer: 'The owner cannot transfer a parcel to the same wallet.',
+  AccessControlUnauthorizedAccount: 'The connected wallet does not have the required role.',
+};
+
+const findRevertData = (error) => {
+  const candidates = [
+    error?.data,
+    error?.info?.error?.data,
+    error?.error?.data,
+    error?.cause?.data,
+  ];
+  return candidates.find((value) => typeof value === 'string' && value.startsWith('0x'));
+};
+
 export const WalletProvider = ({ children }) => {
   const [provider, setProvider] = useState(null);
   const [signer, setSigner] = useState(null);
@@ -178,7 +206,16 @@ export const WalletProvider = ({ children }) => {
       return tx;
     } catch (error) {
       console.error("Transaction failed:", error);
-      const errorMsg = error.reason || error.message || "Transaction failed";
+      let errorMsg = error.reason || error.shortMessage || error.message || "Transaction failed";
+      const revertData = findRevertData(error);
+      if (contract && revertData) {
+        try {
+          const decodedError = contract.interface.parseError(revertData);
+          errorMsg = CONTRACT_ERROR_MESSAGES[decodedError?.name] || errorMsg;
+        } catch (decodeError) {
+          console.debug('Could not decode contract error:', decodeError);
+        }
+      }
       toast.error(errorMsg, { id: txToast });
       throw error;
     } finally {

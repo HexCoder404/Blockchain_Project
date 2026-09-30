@@ -77,6 +77,20 @@ describe("LandRegistry", function () {
                 landRegistry.connect(seller).registerLand(3, 1, "V", "T", "D", 100, 0, seller.address, ethers.ZeroHash, "cid")
             ).to.be.revertedWithCustomError(landRegistry, "AccessControlUnauthorizedAccount");
         });
+
+        it("Should expose registered parcel IDs for role dashboards", async function () {
+            const parcelId = await registerTestParcel(4, 1, seller.address);
+            expect(await landRegistry.getAllParcelIds()).to.deep.equal([parcelId]);
+        });
+
+        it("Should reject zero owners and zero-area parcels", async function () {
+            await expect(
+                landRegistry.connect(talathi).registerLand(5, 1, "V", "T", "D", 100, 0, ethers.ZeroAddress, ethers.ZeroHash, "cid")
+            ).to.be.revertedWithCustomError(landRegistry, "InvalidAddress");
+            await expect(
+                landRegistry.connect(talathi).registerLand(6, 1, "V", "T", "D", 0, 0, seller.address, ethers.ZeroHash, "cid")
+            ).to.be.revertedWithCustomError(landRegistry, "InvalidArea");
+        });
     });
 
     describe("Transfer Workflow & Objections", function () {
@@ -109,13 +123,12 @@ describe("LandRegistry", function () {
 
         it("Should allow objection and rejection", async function () {
             await landRegistry.connect(seller).initiateTransfer(parcelId, buyer.address, "saleDeedCID", 1000);
+            await landRegistry.connect(buyer).acceptTransfer(parcelId);
+            await landRegistry.connect(subRegistrar).approveRegistration(parcelId);
             await expect(landRegistry.connect(objector).fileObjection(parcelId, "objectionCID"))
                 .to.emit(landRegistry, "ObjectionFiled");
 
             await time.increase(30 * 24 * 60 * 60 + 1);
-            await landRegistry.connect(buyer).acceptTransfer(parcelId);
-            await landRegistry.connect(subRegistrar).approveRegistration(parcelId);
-
             await expect(landRegistry.connect(talathi).certifyMutation(parcelId, parseBytes32String("New Owner")))
                 .to.be.revertedWithCustomError(landRegistry, "ObjectionPresent");
 
@@ -137,10 +150,25 @@ describe("LandRegistry", function () {
         
         it("Should prevent objections after 30 days", async function () {
             await landRegistry.connect(seller).initiateTransfer(parcelId, buyer.address, "saleDeedCID", 1000);
+            await landRegistry.connect(buyer).acceptTransfer(parcelId);
+            await landRegistry.connect(subRegistrar).approveRegistration(parcelId);
             await time.increase(30 * 24 * 60 * 60 + 1);
             
             await expect(landRegistry.connect(objector).fileObjection(parcelId, "cid"))
                 .to.be.revertedWithCustomError(landRegistry, "ObjectionPeriodExpired");
+        });
+
+        it("Should start objections only after Sub-Registrar approval", async function () {
+            await landRegistry.connect(seller).initiateTransfer(parcelId, buyer.address, "saleDeedCID", 1000);
+            await expect(landRegistry.connect(objector).fileObjection(parcelId, "cid"))
+                .to.be.revertedWithCustomError(landRegistry, "InvalidTransferState");
+        });
+
+        it("Should reject invalid buyer addresses and self-transfers", async function () {
+            await expect(landRegistry.connect(seller).initiateTransfer(parcelId, ethers.ZeroAddress, "cid", 100))
+                .to.be.revertedWithCustomError(landRegistry, "InvalidAddress");
+            await expect(landRegistry.connect(seller).initiateTransfer(parcelId, seller.address, "cid", 100))
+                .to.be.revertedWithCustomError(landRegistry, "SelfTransfer");
         });
     });
 
@@ -161,6 +189,21 @@ describe("LandRegistry", function () {
             await landRegistry.connect(admin).freezeLand(parcelId);
             await expect(landRegistry.connect(seller).initiateTransfer(parcelId, buyer.address, "cid", 100))
                 .to.be.revertedWithCustomError(landRegistry, "InvalidStatus");
+        });
+
+        it("Should allow a bank to set and clear a mortgage", async function () {
+            await expect(landRegistry.connect(bank).setEncumbrance(parcelId, 1))
+                .to.emit(landRegistry, "LandEncumbranceChanged");
+            await expect(landRegistry.connect(seller).initiateTransfer(parcelId, buyer.address, "cid", 100))
+                .to.be.revertedWithCustomError(landRegistry, "EncumbrancePresent");
+            await landRegistry.connect(bank).setEncumbrance(parcelId, 0);
+            await expect(landRegistry.connect(seller).initiateTransfer(parcelId, buyer.address, "cid", 100))
+                .to.emit(landRegistry, "TransferInitiated");
+        });
+
+        it("Should prevent unauthorized encumbrance updates", async function () {
+            await expect(landRegistry.connect(seller).setEncumbrance(parcelId, 1))
+                .to.be.revertedWithCustomError(landRegistry, "UnauthorizedAccount");
         });
     });
 });

@@ -1,5 +1,5 @@
 {
-  "address": "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318",
+  "address": "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
   "abi": [
     {
       "inputs": [],
@@ -30,6 +30,16 @@
     {
       "inputs": [],
       "name": "EncumbrancePresent",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidAddress",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "InvalidArea",
       "type": "error"
     },
     {
@@ -95,6 +105,11 @@
       "type": "error"
     },
     {
+      "inputs": [],
+      "name": "SelfTransfer",
+      "type": "error"
+    },
+    {
       "inputs": [
         {
           "internalType": "address",
@@ -104,6 +119,31 @@
       ],
       "name": "UnauthorizedAccount",
       "type": "error"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "parcelId",
+          "type": "bytes32"
+        },
+        {
+          "indexed": false,
+          "internalType": "enum LandRegistry.Encumbrance",
+          "name": "newEncumbrance",
+          "type": "uint8"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "updatedBy",
+          "type": "address"
+        }
+      ],
+      "name": "LandEncumbranceChanged",
+      "type": "event"
     },
     {
       "anonymous": false,
@@ -508,6 +548,19 @@
       "type": "function"
     },
     {
+      "inputs": [],
+      "name": "getAllParcelIds",
+      "outputs": [
+        {
+          "internalType": "bytes32[]",
+          "name": "",
+          "type": "bytes32[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
       "inputs": [
         {
           "internalType": "bytes32",
@@ -717,6 +770,11 @@
               "type": "uint256"
             },
             {
+              "internalType": "uint256",
+              "name": "registeredAt",
+              "type": "uint256"
+            },
+            {
               "internalType": "bool",
               "name": "hasObjection",
               "type": "bool"
@@ -921,6 +979,42 @@
         }
       ],
       "name": "revokeRole",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "parcelId",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "enum LandRegistry.Encumbrance",
+          "name": "newEncumbrance",
+          "type": "uint8"
+        }
+      ],
+      "name": "setEncumbrance",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "parcelId",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "enum LandRegistry.Status",
+          "name": "newStatus",
+          "type": "uint8"
+        }
+      ],
+      "name": "setLandStatus",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"

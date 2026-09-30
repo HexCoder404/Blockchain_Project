@@ -5,6 +5,7 @@ import { QRCodeSVG } from 'qrcode.react';
 import { BadgeCheck, Printer, AlertTriangle, Lock } from 'lucide-react';
 import contractData from '../contracts/LandRegistry.json';
 import VerifyDocument from '../components/VerifyDocument';
+import ParcelIdField from '../components/ParcelIdField';
 
 // Basic standard RPC to read without requiring MetaMask connect
 const READ_PROVIDER = new ethers.JsonRpcProvider('http://127.0.0.1:8545'); 
@@ -17,13 +18,14 @@ export default function ExtractView() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    const contract = new ethers.Contract(contractData.address, contractData.abi, READ_PROVIDER);
     const fetchLand = async () => {
       try {
-        const contract = new ethers.Contract(contractData.address, contractData.abi, READ_PROVIDER);
         const data = await contract.getLand(parcelId);
         const hist = await contract.getOwnershipHistory(parcelId);
         setLand(data);
         setHistory(hist);
+        setError(null);
       } catch (err) {
         console.error(err);
         setError("Record not found or invalid parcel ID.");
@@ -31,7 +33,17 @@ export default function ExtractView() {
         setLoading(false);
       }
     };
-    if (parcelId) fetchLand();
+    if (!parcelId) return undefined;
+
+    const refresh = () => fetchLand();
+    refresh();
+    READ_PROVIDER.on('block', refresh);
+    const intervalId = window.setInterval(refresh, 5000);
+
+    return () => {
+      window.clearInterval(intervalId);
+      READ_PROVIDER.off('block', refresh);
+    };
   }, [parcelId]);
 
   if (loading) return <div className="text-center py-20 text-xl font-bold animate-pulse text-earth-600">Retrieving from Blockchain...</div>;
@@ -63,6 +75,10 @@ export default function ExtractView() {
         <div className="text-center border-b-2 border-gray-300 dark:border-gray-700 pb-6 mb-6 mt-4">
           <h2 className="text-3xl font-black text-gray-900 dark:text-gray-100 uppercase tracking-widest">Village Form No. 7 / 12</h2>
           <p className="text-gray-600 dark:text-gray-400 mt-2 font-medium">Record of Rights, Crop Register and Mutation Register</p>
+        </div>
+
+        <div className="mb-8 print:hidden">
+          <ParcelIdField parcelId={parcelId} label="Blockchain Parcel ID" />
         </div>
 
         {/* Info Grid (Responsive Cards on small, Grid on large) */}

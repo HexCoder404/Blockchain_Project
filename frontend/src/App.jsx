@@ -13,6 +13,7 @@ import ExtractView from './pages/ExtractView';
 import CitizenDashboard from './pages/CitizenDashboard';
 import TalathiDashboard from './pages/TalathiDashboard';
 import SubRegistrarDashboard from './pages/SubRegistrarDashboard';
+import BankDashboard from './pages/BankDashboard';
 
 const ProtectedRoute = ({ allowedRoles, children }) => {
   const { role, account, isConnecting } = useWallet();
@@ -51,27 +52,42 @@ const Navigation = () => {
     const nextLang = i18n.language === 'en' ? 'mr' : i18n.language === 'mr' ? 'gu' : 'en';
     i18n.changeLanguage(nextLang);
   };
+  const currentLanguage = (i18n.resolvedLanguage || i18n.language || 'en').split('-')[0];
 
   return (
     <nav className="sticky top-0 z-50 bg-earth-50/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-earth-200 dark:border-gray-800 text-gray-800 dark:text-gray-100 transition-colors print:hidden">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center">
-            <Link to="/" className="text-2xl font-black bg-clip-text text-transparent bg-gradient-to-r from-earth-600 to-earth-400 tracking-tight">
+            <Link to="/" className="text-2xl font-black text-earth-700 dark:text-earth-300 tracking-tight">
               {t('app_name')}
             </Link>
           </div>
           
           <div className="hidden md:flex items-center gap-4">
-            <button onClick={toggleLanguage} className="p-2 rounded-full hover:bg-earth-200 dark:hover:bg-gray-800 transition-colors" title="Toggle Language">
+            <button onClick={toggleLanguage} className="inline-flex h-10 items-center justify-center gap-1.5 rounded-full border border-transparent px-3 hover:border-earth-200 hover:bg-earth-100 hover:shadow-sm dark:hover:border-gray-700 dark:hover:bg-gray-800 transition-all" title="Toggle Language">
               <Globe size={20} className="text-earth-700 dark:text-earth-300" />
-              <span className="ml-1 text-xs uppercase font-bold">{i18n.language}</span>
+              <span className="text-xs uppercase font-bold leading-none text-earth-800 dark:text-earth-200">{currentLanguage}</span>
             </button>
-            <button onClick={toggleTheme} className="p-2 rounded-full hover:bg-earth-200 dark:hover:bg-gray-800 transition-colors">
+            <button onClick={toggleTheme} className="inline-flex h-10 w-10 items-center justify-center rounded-full hover:bg-earth-100 hover:shadow-sm dark:hover:bg-gray-800 transition-all">
               {theme === 'dark' ? <Sun size={20} className="text-yellow-400" /> : <Moon size={20} className="text-earth-700" />}
             </button>
 
-            <Link to="/search" className="font-semibold hover:text-earth-600 dark:hover:text-earth-400 transition-colors">{t('search_712')}</Link>
+            <Link to="/search" className="inline-flex h-10 items-center rounded-full px-4 font-semibold text-earth-800 hover:bg-earth-100 hover:text-earth-700 hover:shadow-sm dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-earth-300 transition-all">{t('search_712')}</Link>
+            {account && (
+              <Link to="/citizen" className="inline-flex h-10 items-center rounded-full px-4 font-semibold text-earth-800 hover:bg-earth-100 hover:text-earth-700 hover:shadow-sm dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-earth-300 transition-all">
+                {t('my_lands')}
+              </Link>
+            )}
+            {(role === 'Talathi' || role === 'Admin') && (
+              <Link to="/talathi" className="hidden xl:inline-flex h-10 items-center rounded-full px-3 text-sm font-semibold text-earth-800 hover:bg-earth-100 hover:shadow-sm dark:text-gray-200 dark:hover:bg-gray-800 transition-all">Talathi</Link>
+            )}
+            {(role === 'SubRegistrar' || role === 'Admin') && (
+              <Link to="/sub-registrar" className="hidden xl:inline-flex h-10 items-center rounded-full px-3 text-sm font-semibold text-earth-800 hover:bg-earth-100 hover:shadow-sm dark:text-gray-200 dark:hover:bg-gray-800 transition-all">Sub-Registrar</Link>
+            )}
+            {(role === 'Bank' || role === 'Admin') && (
+              <Link to="/bank" className="hidden xl:inline-flex h-10 items-center rounded-full px-3 text-sm font-semibold text-earth-800 hover:bg-earth-100 hover:shadow-sm dark:text-gray-200 dark:hover:bg-gray-800 transition-all">Bank</Link>
+            )}
             
             {txPending && (
               <span className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-400 font-semibold px-4 py-1.5 bg-amber-100 dark:bg-amber-900/30 rounded-full">
@@ -114,9 +130,13 @@ const Navigation = () => {
       {isOpen && (
         <div className="md:hidden bg-earth-50 dark:bg-gray-900 border-b border-earth-200 dark:border-gray-800 p-4 space-y-4">
            <button onClick={toggleLanguage} className="flex items-center gap-2 w-full text-left font-bold text-earth-700 dark:text-earth-300">
-              <Globe size={20} /> Language: {i18n.language.toUpperCase()}
+              <Globe size={20} /> Language: {currentLanguage.toUpperCase()}
            </button>
-           <Link to="/search" onClick={() => setIsOpen(false)} className="block font-semibold text-earth-800 dark:text-gray-200">{t('search_712')}</Link>
+           <Link to="/search" onClick={() => setIsOpen(false)} className="block rounded-xl px-3 py-2 font-semibold text-earth-800 hover:bg-earth-100 hover:shadow-sm dark:text-gray-200 dark:hover:bg-gray-800 transition-all">{t('search_712')}</Link>
+           {account && <Link to="/citizen" onClick={() => setIsOpen(false)} className="block rounded-xl px-3 py-2 font-semibold text-earth-800 hover:bg-earth-100 hover:shadow-sm dark:text-gray-200 dark:hover:bg-gray-800 transition-all">{t('my_lands')}</Link>}
+           {(role === 'Talathi' || role === 'Admin') && <Link to="/talathi" onClick={() => setIsOpen(false)} className="block rounded-xl px-3 py-2 font-semibold text-earth-800 hover:bg-earth-100 dark:text-gray-200 dark:hover:bg-gray-800">Talathi Dashboard</Link>}
+           {(role === 'SubRegistrar' || role === 'Admin') && <Link to="/sub-registrar" onClick={() => setIsOpen(false)} className="block rounded-xl px-3 py-2 font-semibold text-earth-800 hover:bg-earth-100 dark:text-gray-200 dark:hover:bg-gray-800">Sub-Registrar Dashboard</Link>}
+           {(role === 'Bank' || role === 'Admin') && <Link to="/bank" onClick={() => setIsOpen(false)} className="block rounded-xl px-3 py-2 font-semibold text-earth-800 hover:bg-earth-100 dark:text-gray-200 dark:hover:bg-gray-800">Bank Dashboard</Link>}
            {account && <Link to="/" onClick={() => setIsOpen(false)} className="block font-semibold text-earth-800 dark:text-gray-200">{t('dashboard')} ({role})</Link>}
            
            <div className="pt-4 border-t border-earth-200 dark:border-gray-800">
@@ -141,7 +161,7 @@ function AppContent() {
       case 'Talathi': return <Navigate to="/talathi" />;
       case 'SubRegistrar': return <Navigate to="/sub-registrar" />;
       case 'Admin': return <Navigate to="/talathi" />;
-      case 'Bank': return <div className="p-8"><h1 className="text-3xl font-bold">Bank Dashboard</h1></div>;
+      case 'Bank': return <Navigate to="/bank" />;
       default: return <Navigate to="/citizen" />;
     }
   };
@@ -154,9 +174,10 @@ function AppContent() {
           <Route path="/" element={getDashboardHome()} />
           <Route path="/search" element={<Search712 />} />
           <Route path="/extract/:parcelId" element={<ExtractView />} />
-          <Route path="/citizen" element={<ProtectedRoute allowedRoles={['Citizen', 'Admin']}><CitizenDashboard /></ProtectedRoute>} />
+          <Route path="/citizen" element={<ProtectedRoute><CitizenDashboard /></ProtectedRoute>} />
           <Route path="/talathi" element={<ProtectedRoute allowedRoles={['Talathi', 'Admin']}><TalathiDashboard /></ProtectedRoute>} />
           <Route path="/sub-registrar" element={<ProtectedRoute allowedRoles={['SubRegistrar', 'Admin']}><SubRegistrarDashboard /></ProtectedRoute>} />
+          <Route path="/bank" element={<ProtectedRoute allowedRoles={['Bank', 'Admin']}><BankDashboard /></ProtectedRoute>} />
         </Routes>
       </main>
     </div>
